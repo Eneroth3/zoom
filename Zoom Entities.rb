@@ -15,16 +15,6 @@ def points(entity, transformation = IDENTITY)
   end.uniq
 end
 
-# For debugging. TODO: Remove.
-def draw_points(points)
-  model = Sketchup.active_model
-  model.start_operation("Test", true)
-  pts = points.map { |pt| model.entities.add_cpoint(pt) }
-  model.commit_operation
-
-  pts
-end
-
 # Get the transformation defining the placement of the active camera. Used for
 # converting between model space and camera space.
 #
@@ -120,11 +110,21 @@ def place_camera(position, camera = Sketchup.active_model.active_view.camera)
   camera.set(eye, camera.target.offset(offset), camera.up)
 end
 
-model = Sketchup.active_model
-transformation = camera_transformation.inverse
-points = model.selection.flat_map { |e| points(e) }.map { |pt| pt.transform(transformation) }
-extremes = frustrum_extremes(points)
-place_camera(camera_coords(extremes))
+# Place camera for view to contain points. Coordinates in model space.
+#
+# @param points [Array<Geom::Point3d>]
+#
+# @return [Void]
+def zoom_points(points)
+  transformation = camera_transformation.inverse
+  points = points.map { |pt| pt.transform(transformation) }
+  extremes = frustrum_extremes(points)
+  place_camera(camera_coords(extremes))
+end
 
-# Testing
-model.selection.add(draw_points(extremes.map { |pt| pt.transform(transformation.inverse) } ))
+# Place camera for view to contain selection.
+#
+# @return [Void]
+def zoom_selection
+  zoom_points(Sketchup.active_model.selection.flat_map { |e| points(e) })
+end

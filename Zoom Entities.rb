@@ -44,6 +44,7 @@ def horizontal_fov
   end
 end
 
+# Find left, right, top and bottom extreme points.
 def frustrum_extremes(points, horizontal_fov = horizontal_fov(), vertical_fov = vertical_fov())
   [
     points.max_by { |pt| pt.x - pt.z * Math.tan(horizontal_fov / 2) },
@@ -53,25 +54,35 @@ def frustrum_extremes(points, horizontal_fov = horizontal_fov(), vertical_fov = 
   ]
 end
 
-def place_camera(extremes, horizontal_fov = horizontal_fov(), vertical_fov = vertical_fov())
-  k = Math.tan(horizontal_fov / 2)
-  m0 = extremes[0].x - k * extremes[0].z
-  m1 = extremes[1].x + k * extremes[1].z
+# Find 2D coordinates for possible camera position. First coordinate is for the
+# dimension given by `dimension_index`, second is Z.
+#
+# @param extremes [Array<(Geom::Point3d, Geom::Point3d)>]
+# @param fov [Float] Field of view in radians.
+# @param dimension_index [Integer] Dimension to check. 0 for X, 1 for Y.
+#
+# @return [Array<(Float, Float)>]
+def camera_2d_coords(extremes, fov, dimension_index)
+  k = Math.tan(fov / 2)
+  m0 = extremes[0].to_a[dimension_index] - k * extremes[0].z
+  m1 = extremes[1].to_a[dimension_index] + k * extremes[1].z
   z = (m1 - m0) / (2 * k)
 
-  # DEBUG: To start with, just find the z offset needed for zoom extents.
-  # Should be 0 when already in horizontally confided zoom extents.
-  #
-  # Nope, should not be 0 for native zoom extents as that adds some margin on
-  # the sides!
-  p z
+  [k * z + m0, z]
+end
+
+def camera_coords(extremes, horizontal_fov = horizontal_fov(), vertical_fov = vertical_fov())
+  c0 = camera_2d_coords(extremes[0..1], horizontal_fov, 0)
+  c1 = camera_2d_coords(extremes[2..3], vertical_fov, 1)
+
+  Geom::Point3d.new(c0[0], c1[0], [c0[1], c1[1]].min)
 end
 
 model = Sketchup.active_model
 transformation = camera_transformation.inverse
 points = model.selection.flat_map { |e| points(e) }.map { |pt| pt.transform(transformation) }
 extremes = frustrum_extremes(points)
-place_camera(extremes)
+p camera_coords(extremes)
 
 # Testing
 model.selection.add(draw_points(extremes.map { |pt| pt.transform(transformation.inverse) } ))

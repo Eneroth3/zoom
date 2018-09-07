@@ -26,25 +26,52 @@ def camera_transformation
   Geom::Transformation.axes(camera.eye, camera.xaxis, camera.yaxis, camera.zaxis)
 end
 
-def frustrum_extremes(points)
+def vertical_fov
   view = Sketchup.active_model.active_view
-  vertical_fov = view.camera.fov / 2
-  horisontal_tan = horizontal_fov * view.vpheight / view.vpwidth
-p Math.atan(horisontal_tan).radians
+  if view.camera.fov_is_height?
+    view.camera.fov.degrees
+  else
+    Math.atan(Math.tan(horizontal_fov / 2 ) * view.vpheight.to_f / view.vpwidth) * 2
+  end
+end
 
+def horizontal_fov
+  view = Sketchup.active_model.active_view
+  if view.camera.fov_is_height?
+    Math.atan(Math.tan(vertical_fov / 2 ) * view.vpwidth.to_f / view.vpheight) * 2
+  else
+    view.camera.fov.degrees
+  end
+end
+
+def frustrum_extremes(points, horizontal_fov = horizontal_fov(), vertical_fov = vertical_fov())
   [
-    points.max_by { |pt| pt.x - pt.z * vertical_fov }, # Correctly adjust for actual fov.
-    points.max_by { |pt| pt.x + pt.z * vertical_fov },
-    points.max_by { |pt| pt.y - pt.z * horisontal_tan },
-    points.max_by { |pt| pt.y + pt.z * horisontal_tan }
+    points.max_by { |pt| pt.x - pt.z * Math.tan(horizontal_fov / 2) },
+    points.min_by { |pt| pt.x + pt.z * Math.tan(horizontal_fov / 2) },
+    points.max_by { |pt| pt.y - pt.z * Math.tan(vertical_fov / 2) },
+    points.min_by { |pt| pt.y + pt.z * Math.tan(vertical_fov / 2) }
   ]
 end
 
+def place_camera(extremes, horizontal_fov = horizontal_fov(), vertical_fov = vertical_fov())
+  k = Math.tan(horizontal_fov / 2)
+  m0 = extremes[0].x - k * extremes[0].z
+  m1 = extremes[1].x + k * extremes[1].z
+  z = (m1 - m0) / (2 * k)
+
+  # DEBUG: To start with, just find the z offset needed for zoom extents.
+  # Should be 0 when already in horizontally confided zoom extents.
+  #
+  # Nope, should not be 0 for native zoom extents as that adds some margin on
+  # the sides!
+  p z
+end
+
+model = Sketchup.active_model
 transformation = camera_transformation.inverse
-points = points(model.selection.first).map { |pt| pt.transform(transformation) }
+points = model.selection.flat_map { |e| points(e) }.map { |pt| pt.transform(transformation) }
 extremes = frustrum_extremes(points)
-# Place camera between these points somehow.
+place_camera(extremes)
 
 # Testing
-draw_points(points - extremes)
-Sketchup.active_model.selection.add(draw_points(extremes))
+model.selection.add(draw_points(extremes.map { |pt| pt.transform(transformation.inverse) } ))

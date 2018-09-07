@@ -136,24 +136,6 @@ module Zoom
   end
   private_class_method :place_camera
 
-  # Find left, right, top and bottom extreme points. All coordinates in camera
-  # space.
-  #
-  # @param points [Array<Geom::Point3d>]
-  # @param horizontal_fov [Float]
-  # @param vertical_fov [Float]
-  #
-  # @return [Array<(Geom::Point3d, Geom::Point3d, Geom::Point3d, Geom::Point3d)>]
-  def self.frustrum_extremes(points, horizontal_fov, vertical_fov)
-    [
-      points.max_by { |pt| pt.x - pt.z * Math.tan(horizontal_fov / 2) },
-      points.min_by { |pt| pt.x + pt.z * Math.tan(horizontal_fov / 2) },
-      points.max_by { |pt| pt.y - pt.z * Math.tan(vertical_fov / 2) },
-      points.min_by { |pt| pt.y + pt.z * Math.tan(vertical_fov / 2) }
-    ]
-  end
-  private_class_method :frustrum_extremes
-
   # Find 3D coordinates for perspective camera. All coordinates in camera space.
   #
   # @param points [Array<Geom::Point3d>]
@@ -171,14 +153,23 @@ module Zoom
   end
   private_class_method :perspective_camera_coords
 
-  def parallel_camera_coords(points)
-    bb = Geom::BoundingBox.new.add(points)
-    eye = bb.center
-    # Move camera back a little extra to void clipping.
-    eye.z = bb.min.z - bb.height / 10
-
-    eye
+  # Find left, right, top and bottom extreme points. All coordinates in camera
+  # space.
+  #
+  # @param points [Array<Geom::Point3d>]
+  # @param horizontal_fov [Float]
+  # @param vertical_fov [Float]
+  #
+  # @return [Array<(Geom::Point3d, Geom::Point3d, Geom::Point3d, Geom::Point3d)>]
+  def self.frustrum_extremes(points, horizontal_fov, vertical_fov)
+    [
+      points.max_by { |pt| pt.x - pt.z * Math.tan(horizontal_fov / 2) },
+      points.min_by { |pt| pt.x + pt.z * Math.tan(horizontal_fov / 2) },
+      points.max_by { |pt| pt.y - pt.z * Math.tan(vertical_fov / 2) },
+      points.min_by { |pt| pt.y + pt.z * Math.tan(vertical_fov / 2) }
+    ]
   end
+  private_class_method :frustrum_extremes
 
   # Find 2D coordinates for possible camera position. First coordinate is for the
   # dimension given by `dimension_index`, second is Z. All coordinates in camera

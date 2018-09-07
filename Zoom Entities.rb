@@ -18,6 +18,7 @@ module Zoom
   # @return [Float]
   def self.horizontal_fov
     view = Sketchup.active_model.active_view
+    return 0 unless view.camera.perspective?
     return view.camera.fov.degrees unless view.camera.fov_is_height?
 
     Math.atan(Math.tan(vertical_fov / 2) * view.vpwidth.to_f / view.vpheight) * 2
@@ -28,6 +29,7 @@ module Zoom
   # @return [Float]
   def self.vertical_fov
     view = Sketchup.active_model.active_view
+    return 0 unless view.camera.perspective?
     return view.camera.fov.degrees if view.camera.fov_is_height?
 
     Math.atan(Math.tan(horizontal_fov / 2) * view.vpheight.to_f / view.vpwidth) * 2
@@ -66,8 +68,14 @@ module Zoom
   def self.zoom_points(points, horizontal_fov = self.horizontal_fov, vertical_fov = self.vertical_fov)
     transformation = camera_transformation.inverse
     points = points.map { |pt| pt.transform(transformation) }
-    extremes = frustrum_extremes(points, horizontal_fov, vertical_fov)
-    place_camera(camera_coords(extremes, horizontal_fov, vertical_fov))
+
+    if Sketchup.active_model.active_view.camera.perspective?
+      zoom_perspective(points, horizontal_fov, vertical_fov)
+    else
+      zoom_parallel(points)
+    end
+
+    nil
   end
 
   # Place camera for view to contain selection.
@@ -100,6 +108,21 @@ module Zoom
   end
   private_class_method :points
 
+  def self.zoom_perspective(points, horizontal_fov, vertical_fov)
+    place_camera(perspective_camera_coords(points, horizontal_fov, vertical_fov))
+  end
+
+  def self.zoom_parallel(points)
+    bb = Geom::BoundingBox.new.add(points)
+    eye = bb.center
+    # Move camera back a little extra to avoid clipping.
+    eye.z = bb.min.z - bb.height / 10
+
+    view = Sketchup.active_model.active_view
+    place_camera(eye, view.camera)
+    view.camera.height = [bb.height, bb.width / view.vpwidth.to_f * view.vpheight].max
+  end
+
   # Place camera at position. Coordinates in camera space.
   #
   # @param position [Geom::Point3d]
@@ -131,20 +154,31 @@ module Zoom
   end
   private_class_method :frustrum_extremes
 
-  # Find 3D coordinates for zoom entities camera. All coordinates in camera space.
+  # Find 3D coordinates for perspective camera. All coordinates in camera space.
   #
-  # @param extremes [Array<(Geom::Point3d, Geom::Point3d, Geom::Point3d, Geom::Point3d)>]
+  # @param points [Array<Geom::Point3d>]
   # @param horizontal_fov [Float]
   # @param vertical_fov [Float]
   #
   # @return [Geom::Point3d]
-  def self.camera_coords(extremes, horizontal_fov, vertical_fov)
+  def self.perspective_camera_coords(points, horizontal_fov, vertical_fov)
+    extremes = frustrum_extremes(points, horizontal_fov, vertical_fov)
+
     c0 = camera_2d_coords(extremes[0..1], horizontal_fov, 0)
     c1 = camera_2d_coords(extremes[2..3], vertical_fov, 1)
 
     Geom::Point3d.new(c0[0], c1[0], [c0[1], c1[1]].min)
   end
-  private_class_method :camera_coords
+  private_class_method :perspective_camera_coords
+
+  def parallel_camera_coords(points)
+    bb = Geom::BoundingBox.new.add(points)
+    eye = bb.center
+    # Move camera back a little extra to void clipping.
+    eye.z = bb.min.z - bb.height / 10
+
+    eye
+  end
 
   # Find 2D coordinates for possible camera position. First coordinate is for the
   # dimension given by `dimension_index`, second is Z. All coordinates in camera

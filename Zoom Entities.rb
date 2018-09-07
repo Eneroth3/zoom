@@ -108,10 +108,24 @@ module Zoom
   end
   private_class_method :points
 
+  # Place perspective camera to contain points in view. All coordinates in
+  # camera space.
+  #
+  # @param points [Array<Geom::Point3d>]
+  # @param horizontal_fov [Float]
+  # @param vertical_fov [Float]
+  #
+  # @return [Void]
   def self.zoom_perspective(points, horizontal_fov, vertical_fov)
     place_camera(perspective_camera_coords(points, horizontal_fov, vertical_fov))
   end
 
+  # Place parallel camera to contain points in view. All coordinates in camera
+  # space.
+  #
+  # @param points [Array<Geom::Point3d>]
+  #
+  # @return [Void]
   def self.zoom_parallel(points)
     bb = Geom::BoundingBox.new.add(points)
     eye = bb.center

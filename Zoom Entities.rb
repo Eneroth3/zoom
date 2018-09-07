@@ -33,6 +33,29 @@ module Zoom
     Math.atan(Math.tan(horizontal_fov / 2) * view.vpheight.to_f / view.vpwidth) * 2
   end
 
+  # Place camera for view to contain active drawing context.
+  #
+  # @param horizontal_fov [Float]
+  # @param vertical_fov [Float]
+  #
+  # @return [Void]
+  def self.zoom_active(horizontal_fov = self.horizontal_fov, vertical_fov = self.vertical_fov)
+    zoom_entities(Sketchup.active_model.active_entities, horizontal_fov, vertical_fov)
+  end
+
+  # Place camera for view to contain entities (assumed to be in active drawing
+  # context).
+  #
+  # @param entities [Array<Sketchup::DrawingElement>, Sketchup::Entities, Sketchup::Selection]
+  # @param horizontal_fov [Float]
+  # @param vertical_fov [Float]
+  #
+  # @return [Void]
+  def self.zoom_entities(entities, horizontal_fov = self.horizontal_fov, vertical_fov = self.vertical_fov)
+    points = entities.flat_map { |e| points(e) }
+    zoom_points(points, horizontal_fov, vertical_fov)
+  end
+
   # Place camera for view to contain points. Coordinates in model space.
   #
   # @param points [Array<Geom::Point3d>]
@@ -54,7 +77,7 @@ module Zoom
   #
   # @return [Void]
   def self.zoom_selection(horizontal_fov = self.horizontal_fov, vertical_fov = self.vertical_fov)
-    zoom_points(Sketchup.active_model.selection.flat_map { |e| points(e) })
+    zoom_entities(Sketchup.active_model.selection, horizontal_fov, vertical_fov)
   end
 
   #-------------------------------------------------------------------------------

@@ -108,11 +108,23 @@ def camera_coords(extremes, horizontal_fov = horizontal_fov(), vertical_fov = ve
   Geom::Point3d.new(c0[0], c1[0], [c0[1], c1[1]].min)
 end
 
+# Place camera at position. Coordinates in camera space.
+#
+# @param position [Geom::Point3d]
+# @param camera [Sketchup::Camera]
+#
+# @return [Void]
+def place_camera(position, camera = Sketchup.active_model.active_view.camera)
+  eye = position.transform(camera_transformation)
+  offset = eye - camera.eye
+  camera.set(eye, camera.target.offset(offset), camera.up)
+end
+
 model = Sketchup.active_model
 transformation = camera_transformation.inverse
 points = model.selection.flat_map { |e| points(e) }.map { |pt| pt.transform(transformation) }
 extremes = frustrum_extremes(points)
-p camera_coords(extremes)
+place_camera(camera_coords(extremes))
 
 # Testing
 model.selection.add(draw_points(extremes.map { |pt| pt.transform(transformation.inverse) } ))

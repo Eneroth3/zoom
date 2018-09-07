@@ -1,132 +1,140 @@
-# Get the transformation defining the placement of the active camera. Used for
-# converting between model space and camera space.
-#
-# @return [Geom::Transformation]
-def camera_transformation
-  camera = Sketchup.active_model.active_view.camera
+# Position camera for view to contain points, selection or custom entities.
+module Zoom
+  # REVIEW: Either make a few methods private, or change description of class
+  # to include all view related things.
 
-  Geom::Transformation.axes(camera.eye, camera.xaxis, camera.yaxis, camera.zaxis)
-end
+  # Get the transformation defining the placement of the active camera. Used for
+  # converting between model space and camera space.
+  #
+  # @return [Geom::Transformation]
+  def self.camera_transformation
+    camera = Sketchup.active_model.active_view.camera
 
-# Get horizontal field of view angle for active view. Angle in radians.
-#
-# @return [Float]
-def horizontal_fov
-  view = Sketchup.active_model.active_view
-  if view.camera.fov_is_height?
-    Math.atan(Math.tan(vertical_fov / 2 ) * view.vpwidth.to_f / view.vpheight) * 2
-  else
-    view.camera.fov.degrees
+    Geom::Transformation.axes(camera.eye, camera.xaxis, camera.yaxis, camera.zaxis)
   end
-end
 
-# Get vertical field of view angle for active view. Angle in radians.
-#
-# @return [Float]
-def vertical_fov
-  view = Sketchup.active_model.active_view
-  if view.camera.fov_is_height?
-    view.camera.fov.degrees
-  else
-    Math.atan(Math.tan(horizontal_fov / 2 ) * view.vpheight.to_f / view.vpwidth) * 2
+  # Get horizontal field of view angle for active view. Angle in radians.
+  #
+  # @return [Float]
+  def self.horizontal_fov
+    view = Sketchup.active_model.active_view
+    return view.camera.fov.degrees unless view.camera.fov_is_height?
+
+    Math.atan(Math.tan(vertical_fov / 2) * view.vpwidth.to_f / view.vpheight) * 2
   end
-end
 
-# Place camera for view to contain points. Coordinates in model space.
-#
-# @param points [Array<Geom::Point3d>]
-#
-# @return [Void]
-def zoom_points(points)
-  transformation = camera_transformation.inverse
-  points = points.map { |pt| pt.transform(transformation) }
-  extremes = frustrum_extremes(points)
-  place_camera(camera_coords(extremes))
-end
+  # Get vertical field of view angle for active view. Angle in radians.
+  #
+  # @return [Float]
+  def self.vertical_fov
+    view = Sketchup.active_model.active_view
+    return view.camera.fov.degrees if view.camera.fov_is_height?
 
-# Place camera for view to contain selection.
-#
-# @return [Void]
-def zoom_selection
-  zoom_points(Sketchup.active_model.selection.flat_map { |e| points(e) })
-end
+    Math.atan(Math.tan(horizontal_fov / 2) * view.vpheight.to_f / view.vpwidth) * 2
+  end
 
-#-------------------------------------------------------------------------------
+  # Place camera for view to contain points. Coordinates in model space.
+  #
+  # @param points [Array<Geom::Point3d>]
+  #
+  # @return [Void]
+  def self.zoom_points(points, horizontal_fov = self.horizontal_fov, vertical_fov = self.vertical_fov)
+    transformation = camera_transformation.inverse
+    points = points.map { |pt| pt.transform(transformation) }
+    extremes = frustrum_extremes(points, horizontal_fov, vertical_fov)
+    place_camera(camera_coords(extremes, horizontal_fov, vertical_fov))
+  end
 
-# Recursively find all points in entity.
-#
-# @param entity [Sketchup::DrawingElement]
-# @param transformation [Geom::Transformation]
-#
-# @return [Array<Geom::Point3d>]
-def points(entity, transformation = IDENTITY)
-  case entity
-  when Sketchup::ComponentInstance, Sketchup::Group
-    entity.definition.entities.flat_map { |e| points(e, transformation * entity.transformation) }
-  when Sketchup::Edge, Sketchup::Face
-    entity.vertices.map { |v| v.position.transform(transformation) }
-  else
-    []
-  end.uniq
-end
+  # Place camera for view to contain selection.
+  #
+  # @return [Void]
+  def self.zoom_selection(horizontal_fov = self.horizontal_fov, vertical_fov = self.vertical_fov)
+    zoom_points(Sketchup.active_model.selection.flat_map { |e| points(e) })
+  end
 
-# Place camera at position. Coordinates in camera space.
-#
-# @param position [Geom::Point3d]
-# @param camera [Sketchup::Camera]
-#
-# @return [Void]
-def place_camera(position, camera = Sketchup.active_model.active_view.camera)
-  eye = position.transform(camera_transformation)
-  offset = eye - camera.eye
-  camera.set(eye, camera.target.offset(offset), camera.up)
-end
+  #-------------------------------------------------------------------------------
 
-# Find left, right, top and bottom extreme points. All coordinates in camera
-# space.
-#
-# @para points [Array<Geom::Point3d>]
-# @param horizontal_fov [Float]
-# @param vertical_fov [Float]
-#
-# @return [Array<(Geom::Point3d, Geom::Point3d, Geom::Point3d, Geom::Point3d)>]
-def frustrum_extremes(points, horizontal_fov = horizontal_fov(), vertical_fov = vertical_fov())
-  [
-    points.max_by { |pt| pt.x - pt.z * Math.tan(horizontal_fov / 2) },
-    points.min_by { |pt| pt.x + pt.z * Math.tan(horizontal_fov / 2) },
-    points.max_by { |pt| pt.y - pt.z * Math.tan(vertical_fov / 2) },
-    points.min_by { |pt| pt.y + pt.z * Math.tan(vertical_fov / 2) }
-  ]
-end
+  # Recursively find all points in entity.
+  #
+  # @param entity [Sketchup::DrawingElement]
+  # @param transformation [Geom::Transformation]
+  #
+  # @return [Array<Geom::Point3d>]
+  def self.points(entity, transformation = IDENTITY)
+    case entity
+    when Sketchup::ComponentInstance, Sketchup::Group
+      entity.definition.entities.flat_map { |e| points(e, transformation * entity.transformation) }
+    when Sketchup::Edge, Sketchup::Face
+      entity.vertices.map { |v| v.position.transform(transformation) }
+    else
+      []
+    end.uniq
+  end
+  private_class_method :points
 
-# Find 3D coordinates for zoom entities camera. All coordinates in camera space.
-#
-# @param extremes [Array<(Geom::Point3d, Geom::Point3d, Geom::Point3d, Geom::Point3d)>]
-# @param horizontal_fov [Float]
-# @param vertical_fov [Float]
-#
-# @return [Geom::Point3d]
-def camera_coords(extremes, horizontal_fov = horizontal_fov(), vertical_fov = vertical_fov())
-  c0 = camera_2d_coords(extremes[0..1], horizontal_fov, 0)
-  c1 = camera_2d_coords(extremes[2..3], vertical_fov, 1)
+  # Place camera at position. Coordinates in camera space.
+  #
+  # @param position [Geom::Point3d]
+  # @param camera [Sketchup::Camera]
+  #
+  # @return [Void]
+  def self.place_camera(position, camera = Sketchup.active_model.active_view.camera)
+    eye = position.transform(camera_transformation)
+    offset = eye - camera.eye
+    camera.set(eye, camera.target.offset(offset), camera.up)
+  end
+  private_class_method :place_camera
 
-  Geom::Point3d.new(c0[0], c1[0], [c0[1], c1[1]].min)
-end
+  # Find left, right, top and bottom extreme points. All coordinates in camera
+  # space.
+  #
+  # @para points [Array<Geom::Point3d>]
+  # @param horizontal_fov [Float]
+  # @param vertical_fov [Float]
+  #
+  # @return [Array<(Geom::Point3d, Geom::Point3d, Geom::Point3d, Geom::Point3d)>]
+  def self.frustrum_extremes(points, horizontal_fov, vertical_fov)
+    [
+      points.max_by { |pt| pt.x - pt.z * Math.tan(horizontal_fov / 2) },
+      points.min_by { |pt| pt.x + pt.z * Math.tan(horizontal_fov / 2) },
+      points.max_by { |pt| pt.y - pt.z * Math.tan(vertical_fov / 2) },
+      points.min_by { |pt| pt.y + pt.z * Math.tan(vertical_fov / 2) }
+    ]
+  end
+  private_class_method :frustrum_extremes
 
-# Find 2D coordinates for possible camera position. First coordinate is for the
-# dimension given by `dimension_index`, second is Z. All coordinates in camera
-# space.
-#
-# @param extremes [Array<(Geom::Point3d, Geom::Point3d)>]
-# @param fov [Float] Field of view in radians.
-# @param dimension_index [Integer] 0 for X, 1 for Y.
-#
-# @return [Array<(Float, Float)>]
-def camera_2d_coords(extremes, fov, dimension_index)
-  k = Math.tan(fov / 2)
-  m0 = extremes[0].to_a[dimension_index] - k * extremes[0].z
-  m1 = extremes[1].to_a[dimension_index] + k * extremes[1].z
-  z = (m1 - m0) / (2 * k)
+  # Find 3D coordinates for zoom entities camera. All coordinates in camera space.
+  #
+  # @param extremes [Array<(Geom::Point3d, Geom::Point3d, Geom::Point3d, Geom::Point3d)>]
+  # @param horizontal_fov [Float]
+  # @param vertical_fov [Float]
+  #
+  # @return [Geom::Point3d]
+  def self.camera_coords(extremes, horizontal_fov, vertical_fov)
+    c0 = camera_2d_coords(extremes[0..1], horizontal_fov, 0)
+    c1 = camera_2d_coords(extremes[2..3], vertical_fov, 1)
 
-  [k * z + m0, z]
+    Geom::Point3d.new(c0[0], c1[0], [c0[1], c1[1]].min)
+  end
+  private_class_method :camera_coords
+
+  # Find 2D coordinates for possible camera position. First coordinate is for the
+  # dimension given by `dimension_index`, second is Z. All coordinates in camera
+  # space.
+  #
+  # @param extremes [Array<(Geom::Point3d, Geom::Point3d)>]
+  # @param fov [Float] Field of view in radians.
+  # @param dimension_index [Integer] 0 for X, 1 for Y.
+  #
+  # @return [Array<(Float, Float)>]
+  def self.camera_2d_coords(extremes, fov, dimension_index)
+    k = Math.tan(fov / 2)
+    m0 = extremes[0].to_a[dimension_index] - k * extremes[0].z
+    m1 = extremes[1].to_a[dimension_index] + k * extremes[1].z
+    z = (m1 - m0) / (2 * k)
+
+    [k * z + m0, z]
+  end
+  private_class_method :camera_2d_coords
+
 end

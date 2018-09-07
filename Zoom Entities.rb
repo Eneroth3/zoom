@@ -36,6 +36,8 @@ module Zoom
   # Place camera for view to contain points. Coordinates in model space.
   #
   # @param points [Array<Geom::Point3d>]
+  # @param horizontal_fov [Float]
+  # @param vertical_fov [Float]
   #
   # @return [Void]
   def self.zoom_points(points, horizontal_fov = self.horizontal_fov, vertical_fov = self.vertical_fov)
@@ -46,6 +48,9 @@ module Zoom
   end
 
   # Place camera for view to contain selection.
+  #
+  # @param horizontal_fov [Float]
+  # @param vertical_fov [Float]
   #
   # @return [Void]
   def self.zoom_selection(horizontal_fov = self.horizontal_fov, vertical_fov = self.vertical_fov)
@@ -88,7 +93,7 @@ module Zoom
   # Find left, right, top and bottom extreme points. All coordinates in camera
   # space.
   #
-  # @para points [Array<Geom::Point3d>]
+  # @param points [Array<Geom::Point3d>]
   # @param horizontal_fov [Float]
   # @param vertical_fov [Float]
   #

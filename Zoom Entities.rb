@@ -13,12 +13,22 @@ module Zoom
     Geom::Transformation.axes(camera.eye, camera.xaxis, camera.yaxis, camera.zaxis)
   end
 
+  # Check whether the fov (field of view) value is vertical or horizontal.
+  # Wrapper method for Camera.fov_is_height?, added in SketchUp 2015.
+  #
+  # @param camera [Sketchup::Camera]
+  #
+  # @return [Boolean]
+  def self.fov_is_height?(camera = Sketchup.active_model.active_view.camera)
+    Sketchup.version.to_i <= 14 || camera.fov_is_height?
+  end
+
   # Get horizontal field of view angle for active view. Angle in radians.
   #
   # @return [Float]
   def self.horizontal_fov
     view = Sketchup.active_model.active_view
-    return view.camera.fov.degrees unless view.camera.fov_is_height?
+    return view.camera.fov.degrees unless fov_is_height?
 
     Math.atan(Math.tan(vertical_fov / 2) * view.vpwidth.to_f / view.vpheight) * 2
   end
@@ -28,7 +38,7 @@ module Zoom
   # @return [Float]
   def self.vertical_fov
     view = Sketchup.active_model.active_view
-    return view.camera.fov.degrees if view.camera.fov_is_height?
+    return view.camera.fov.degrees if fov_is_height?
 
     Math.atan(Math.tan(horizontal_fov / 2) * view.vpheight.to_f / view.vpwidth) * 2
   end
